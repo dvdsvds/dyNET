@@ -1,6 +1,11 @@
 #include "dynet/dysocket.hpp"
 #include "dynet/dyhttp.hpp"
 #include "dynet/dyutils.hpp"
+#include "dynet/dyrouter.hpp"
+
+void home_handler(HttpRequest&, HttpResponse& res) {
+    dy_strcat(res.body, res.body_len, "hello!");
+}
 
 int main() {
     int server_fd = dy_socket(2, 1, 0);
@@ -22,6 +27,14 @@ int main() {
         return 1;
     }
 
+    Route route;
+    dy_strcpy(route.method, "GET");
+    dy_strcpy(route.path, "/");
+    route.handler = home_handler; 
+    Router router = {};
+    route_init(router, 8);
+    router_add(router, route);
+
     while (1) {
         dySocket client_addr;
         unsigned int client_len = sizeof(dySocket);
@@ -40,16 +53,13 @@ int main() {
         parse_request(buf, req);
 
         HttpResponse res;
-        res.status_code = 200;
         res.body_len = 0;
-        dy_strcat(res.body, res.body_len, "hello from dyNET");
-        res.content_len = res.body_len;
-        set_status_code(res);
+        res.content_len = 0;
+        router_dispatch(router, req, res);
 
         char out[8192];
         int out_len = 0;
         build_response(res, out, out_len);
-
         dy_write(client_fd, out, out_len);
         dy_close(client_fd);
     }

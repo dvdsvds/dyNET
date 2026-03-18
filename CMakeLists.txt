@@ -11,6 +11,7 @@ add_library(dynet STATIC
     src/dysocket.cpp
     src/dyhttp.cpp
     src/dyutils.cpp
+    src/dyrouter.cpp
 )
 
 target_include_directories(dynet PUBLIC

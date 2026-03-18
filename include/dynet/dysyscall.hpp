@@ -4,6 +4,8 @@
     #define DY_SYS_READ   0
     #define DY_SYS_WRITE  1
     #define DY_SYS_CLOSE  3
+    #define DY_SYS_MMAP   9
+    #define DY_SYS_MUNMAP 11
     #define DY_SYS_SOCKET 41
     #define DY_SYS_ACCEPT 43
     #define DY_SYS_BIND   49
