@@ -2,9 +2,50 @@
 #include "dynet/dyhttp.hpp"
 #include "dynet/dyutils.hpp"
 #include "dynet/dyrouter.hpp"
+#include "dynet/dythread.hpp"
 
 void home_handler(HttpRequest&, HttpResponse& res) {
-    dy_strcat(res.body, res.body_len, "hello!");
+    res.status_code = 200;
+    dy_strcat(res.body, res.body_len, "hello from dyNET\n");
+    res.content_len = res.body_len;
+    set_status_code(res);
+}
+
+struct ThreadArg {
+    int client_fd;
+    Router* router;
+};
+
+int thread_func(void* arg) {
+    ThreadArg* targ = reinterpret_cast<ThreadArg*>(arg);
+    int client_fd = targ->client_fd;
+    Router* router = targ->router;
+
+    char buf[4096] = {};
+    int n = dy_read(client_fd, buf, sizeof(buf) - 1);
+    dy_write(1, "read ok\n", 8);
+    if (n <= 0) {
+        dy_close(client_fd);
+        return 0;
+    }
+
+    HttpRequest req;
+    parse_request(buf, req);
+    dy_write(1, "parse ok\n", 9);
+
+    HttpResponse res;
+    res.body_len = 0;
+    res.content_len = 0;
+    router_dispatch(*router, req, res);
+    dy_write(1, "dispatch ok\n", 12);
+
+    char out[8192];
+    int out_len = 0;
+    build_response(res, out, out_len);
+    dy_write(client_fd, out, out_len);
+    dy_close(client_fd);
+    dy_free(targ, sizeof(ThreadArg));
+    return 0;
 }
 
 int main() {
@@ -38,30 +79,18 @@ int main() {
     while (1) {
         dySocket client_addr;
         unsigned int client_len = sizeof(dySocket);
-
         int client_fd = dy_accept(server_fd, &client_addr, &client_len);
         if (client_fd < 0) continue;
 
-        char buf[4096] = {};
-        int n = dy_read(client_fd, buf, sizeof(buf) - 1);
-        if (n <= 0) {
-            dy_close(client_fd);
-            continue;
-        }
-
-        HttpRequest req;
-        parse_request(buf, req);
-
-        HttpResponse res;
-        res.body_len = 0;
-        res.content_len = 0;
-        router_dispatch(router, req, res);
-
-        char out[8192];
-        int out_len = 0;
-        build_response(res, out, out_len);
-        dy_write(client_fd, out, out_len);
-        dy_close(client_fd);
+        ThreadArg* targ = reinterpret_cast<ThreadArg*>(dy_malloc(sizeof(ThreadArg)));
+        targ->client_fd = client_fd;
+        targ->router = &router;
+        
+        int tid = dy_thread_create(thread_func, targ);
+        char tbuf[16];
+        dy_itoa(tid, tbuf);
+        dy_write(1, tbuf, 3);
+        dy_write(1, "\n", 1);
     }
 
     dy_close(server_fd);

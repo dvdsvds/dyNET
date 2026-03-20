@@ -53,8 +53,8 @@ void* dy_malloc(unsigned long size) {
         0
     )
     );
-
 }
+
 void dy_free(void* ptr, unsigned long int size) {
     dy_syscall(DY_SYS_MUNMAP, reinterpret_cast<long>(ptr), static_cast<long>(size));
 }
